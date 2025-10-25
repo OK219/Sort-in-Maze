@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 class Program
 {
@@ -56,7 +57,7 @@ class Program
         throw new Exception("Can't take from empty room");
     }
 
-    static (State? NextState, int? Weight, bool Succsess) MoveInHall(State state, int initialPos, int targetPos)
+    static (State NextState, int Weight) MoveInHall(State state, int initialPos, int targetPos)
     {
         var start = Math.Min(initialPos, targetPos);
         var end = Math.Max(initialPos, targetPos);
@@ -66,7 +67,6 @@ class Program
         {
             if (hall[i] != '.' && i != initialPos)
             {
-                return (null, null, false);
                 throw new Exception("Can't reach target position");
             }
         }
@@ -74,13 +74,7 @@ class Program
         hall[targetPos] = hall[initialPos];
         hall[initialPos] = '.';
 
-        if (hall[targetPos] == '.')
-        {
-            Console.WriteLine($"{initialPos} {targetPos}");
-            Console.WriteLine(string.Join(' ', hall));
-        }
-
-        return (new State(hall, state.Rooms), Math.Abs(targetPos - initialPos) * Weights[hall[targetPos]], true);
+        return (new State(hall, state.Rooms), Math.Abs(targetPos - initialPos) * Weights[hall[targetPos]]);
     }
 
     static (State NextState, int Weight) PutInRoom(State state, int hallPosition)
@@ -111,7 +105,7 @@ class Program
     static bool CanPut(State state, int hallPos)
     {
         return //RoomMapInt[hallPos] == state.Hall[hallPos] &&
-               state.Rooms[(hallPos - 2) / 2].All(x => x == '.' || x == RoomMapInt[hallPos]);
+            state.Rooms[(hallPos - 2) / 2].All(x => x == '.' || x == RoomMapInt[hallPos]);
     }
 
     static bool CanMove(State state, int initialPos, int targetPos)
@@ -137,9 +131,9 @@ class Program
     static (State state, int Weight) MoveAndPut(State state, int weight, int hallPos)
     {
         var roomIdx = RoomMapChar[state.Hall[hallPos]];
-        var (nextState, moveWeight, succsess) = MoveInHall(state, hallPos, roomIdx);
+        var (nextState, moveWeight) = MoveInHall(state, hallPos, roomIdx);
         var (putState, putWeight) = PutInRoom(nextState, roomIdx);
-        return (putState, weight + (int)moveWeight + putWeight);
+        return (putState, weight + moveWeight + putWeight);
     }
 
     static int AStar(State initialState)
@@ -153,7 +147,9 @@ class Program
             if (IsCompleted(state)) return weight;
             for (var i = 0; i < state.Hall.Length; i++)
             {
-                if (state.Hall[i] == '.' || !(CanMove(state, i, RoomMapChar[state.Hall[i]]) && CanPut(state, RoomMapChar[state.Hall[i]]))) continue;
+                if (state.Hall[i] == '.') continue; 
+                var targetPos = RoomMapChar[state.Hall[i]];
+                if (!(CanMove(state, i, targetPos) && CanPut(state, targetPos))) continue;
                 var (putState, nextWeight) = MoveAndPut(state, weight, i);
                 q.Enqueue((putState, nextWeight), nextWeight);
                 shouldBreak = true;
@@ -166,7 +162,8 @@ class Program
                 if (!CanTake(state, i)) continue;
                 var (takeState, takeWeight) = TakeFromRoom(state, i);
                 var hallPos = i * 2 + 2;
-                if (CanMove(state, hallPos, RoomMapChar[takeState.Hall[hallPos]]) && CanPut(state, RoomMapChar[takeState.Hall[hallPos]]))
+                if (CanMove(state, hallPos, RoomMapChar[takeState.Hall[hallPos]]) &&
+                    CanPut(state, RoomMapChar[takeState.Hall[hallPos]]))
                 {
                     var (putState, nextWeight) = MoveAndPut(takeState, weight + takeWeight, hallPos);
                     q.Enqueue((putState, nextWeight), nextWeight);
@@ -175,10 +172,10 @@ class Program
                 {
                     for (var j = 0; j < takeState.Hall.Length; j++)
                     {
-                        if (RoomMapInt.ContainsKey(j)) continue;
-                        var (moveState, moveWeight, succsess) = MoveInHall(takeState, hallPos, j);
-                        if (!succsess) continue;
-                        q.Enqueue((moveState, weight + takeWeight + (int)moveWeight), weight + takeWeight + (int)moveWeight);
+                        if (RoomMapInt.ContainsKey(j) || !CanMove(takeState, hallPos, j)) continue;
+                        var (moveState, moveWeight) = MoveInHall(takeState, hallPos, j);
+                        q.Enqueue((moveState, weight + takeWeight + moveWeight),
+                            weight + takeWeight + moveWeight);
                     }
                 }
             }
