@@ -25,20 +25,32 @@ class Program
                 }
             }
 
-            var toRemove = priority
+            var mostPriority = priority
                 .OrderBy(x => x.Key)
                 .First()
                 .Value
                 .OrderBy(x => x.GateWay)
                 .ThenBy(x => x.Prev)
                 .First();
+            var mostNearest = distances
+                .OrderBy(x => x.Key)
+                .First(x => x.Value.Any(y => y.GateWay == mostPriority.GateWay))
+                .Value;
+            var toRemove = mostNearest
+                .FirstOrDefault(x => x.Prev == mostPriority.Prev);
+            if (toRemove is ('\0', '\0', '\0'))
+                toRemove = mostNearest
+                    .Where(x => x.GateWay == mostPriority.GateWay)
+                    .OrderBy(x => x.GateWay)
+                    .ThenBy(x => x.Prev)
+                    .First();
 
             graph[toRemove.Prev].Remove(toRemove.GateWay);
             graph[toRemove.GateWay].Remove(toRemove.Prev);
             result.Add($"{toRemove.GateWay}-{toRemove.Prev}");
-            
+
             if (gateWayEdgesCount == 0) break;
-            
+
             var nextMove = distances
                 .OrderBy(x => x.Key)
                 .First(x => (x.Value.Count > 1 && x.Value.Contains(toRemove)) || !x.Value.Contains(toRemove))
@@ -46,7 +58,7 @@ class Program
                 .OrderBy(x => x.GateWay)
                 .ThenBy(x => x.Prev)
                 .First(x => x != toRemove);
-            
+
             startPos = nextMove.VirusNextStep;
         }
 
@@ -76,7 +88,7 @@ class Program
             if (second <= 'Z') gateWayEdgesCount++;
             if (first <= 'Z') gateWayEdgesCount++;
         }
-        
+
         var result = Solve(graph, gateWayEdgesCount);
         foreach (var edge in result)
         {
