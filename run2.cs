@@ -76,23 +76,12 @@ class Program
             if (second <= 'Z') gateWayEdgesCount++;
             if (first <= 'Z') gateWayEdgesCount++;
         }
-
-        var s = Stopwatch.StartNew();
-        Process currentProcess = Process.GetCurrentProcess();
+        
         var result = Solve(graph, gateWayEdgesCount);
         foreach (var edge in result)
         {
             Console.WriteLine(edge);
         }
-
-        s.Stop();
-        Console.WriteLine(s.ElapsedMilliseconds);
-        
-        long peakMemory = currentProcess.PeakWorkingSet64;
-        long peakPagedMemory = currentProcess.PeakPagedMemorySize64;
-        
-        Console.WriteLine($"Peak physical memory: {peakMemory / 1024 / 1024} MB");
-        Console.WriteLine($"Peak paged memory: {peakPagedMemory / 1024 / 1024} MB");
     }
 
     static Dictionary<int, List<(char Prev, char GateWay, char VirusNextStep)>> BFS(char startPos,
