@@ -3,72 +3,86 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
+public class State
+{
+    public readonly char VirusPosition;
+    public readonly HashSet<(char GateWay, char PrevNode)> GateWays;
+    public readonly List<string> Result;
+
+    public State(char virusPosition, HashSet<(char GateWay, char PrevNode)> gateWays, List<string> result)
+    {
+        VirusPosition = virusPosition;
+        GateWays = gateWays.ToHashSet();
+        Result = result.ToList();
+    }
+
+    protected bool Equals(State other)
+    {
+        return VirusPosition == other.VirusPosition && GateWays.SetEquals(other.GateWays);
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is null) return false;
+        if (ReferenceEquals(this, obj)) return true;
+        if (obj.GetType() != GetType()) return false;
+        return Equals((State)obj);
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = (int)VirusPosition;
+        return GateWays.Aggregate(hash, (current, pair) => HashCode.Combine(pair, current));
+    }
+}
+
 class Program
 {
-    static List<string> Solve(Dictionary<char, HashSet<char>> graph, int gateWayEdgesCount)
+    static List<string> Solve(Dictionary<char, HashSet<char>> graph, HashSet<(char GateWay, char PrevNode)> gateWays)
     {
-        var result = new List<string>();
-        var startPos = 'a';
-        while (gateWayEdgesCount-- > 0)
+        var initialState = new State('a', gateWays, []);
+        var q = new Queue<State>();
+        q.Enqueue(initialState);
+        var visited = new HashSet<State>();
+        while (q.Count > 0)
         {
-            var distances = BFS(startPos, graph);
-            var priority = new Dictionary<int, List<(char Prev, char GateWay, char VirusNextStep)>>();
-
-            foreach (var pair in distances)
+            var curState = q.Dequeue();
+            if (!visited.Add(curState) || curState.VirusPosition <= 'Z') continue;
+            var distances = BFS(curState, graph);
+            foreach (var pair in distances.OrderBy(x => x.Key))
             {
-                foreach (var chars in pair.Value)
+                foreach (var toRemove in pair.Value.OrderBy(x => x.GateWay).ThenBy(x => x.Prev))
                 {
-                    var neighboursCount = graph[chars.Prev].Count(x => x <= 'Z');
-                    var weight = pair.Key - neighboursCount;
-                    priority.TryAdd(weight, []);
-                    priority[weight].Add(chars);
+                    if (curState.GateWays.Count == 1)
+                    {
+                        curState.Result.Add($"{toRemove.GateWay}-{toRemove.Prev}");
+                        return curState.Result;
+                    }
+
+                    var virusNextStep = distances
+                        .OrderBy(x => x.Key)
+                        .First(x => (x.Value.Count > 1 && x.Value.Contains(toRemove)) || !x.Value.Contains(toRemove))
+                        .Value
+                        .OrderBy(x => x.GateWay)
+                        .ThenBy(x => x.Prev)
+                        .First(x => x != toRemove)
+                        .VirusNextStep;
+
+                    var nextState = new State(virusNextStep, curState.GateWays, curState.Result);
+                    nextState.GateWays.Remove((toRemove.GateWay, toRemove.Prev));
+                    nextState.Result.Add($"{toRemove.GateWay}-{toRemove.Prev}");
+                    if (!visited.Contains(nextState)) q.Enqueue(nextState);
                 }
             }
-
-            var mostPriority = priority
-                .OrderBy(x => x.Key)
-                .First()
-                .Value
-                .OrderBy(x => x.GateWay)
-                .ThenBy(x => x.Prev)
-                .First();
-            var mostNearest = distances
-                .OrderBy(x => x.Key)
-                .First(x => x.Value.Any(y => y.GateWay == mostPriority.GateWay))
-                .Value;
-            var toRemove = mostNearest
-                .FirstOrDefault(x => x.Prev == mostPriority.Prev);
-            if (toRemove is ('\0', '\0', '\0'))
-                toRemove = mostNearest
-                    .Where(x => x.GateWay == mostPriority.GateWay)
-                    .OrderBy(x => x.GateWay)
-                    .ThenBy(x => x.Prev)
-                    .First();
-
-            graph[toRemove.Prev].Remove(toRemove.GateWay);
-            graph[toRemove.GateWay].Remove(toRemove.Prev);
-            result.Add($"{toRemove.GateWay}-{toRemove.Prev}");
-
-            if (gateWayEdgesCount == 0) break;
-
-            var nextMove = distances
-                .OrderBy(x => x.Key)
-                .First(x => (x.Value.Count > 1 && x.Value.Contains(toRemove)) || !x.Value.Contains(toRemove))
-                .Value
-                .OrderBy(x => x.GateWay)
-                .ThenBy(x => x.Prev)
-                .First(x => x != toRemove);
-
-            startPos = nextMove.VirusNextStep;
         }
 
-        return result;
+        return [];
     }
 
     static void Main()
     {
         var graph = new Dictionary<char, HashSet<char>>();
-        var gateWayEdgesCount = 0;
+        var gateWays = new HashSet<(char, char)>();
         string line;
 
         while (!string.IsNullOrEmpty(line = Console.ReadLine()))
@@ -85,31 +99,38 @@ class Program
             graph.TryAdd(second, []);
             graph[second].Add(first);
 
-            if (second <= 'Z') gateWayEdgesCount++;
-            if (first <= 'Z') gateWayEdgesCount++;
+            if (second <= 'Z') gateWays.Add((second, first));
+            if (first <= 'Z') gateWays.Add((first, second));
         }
 
-        var result = Solve(graph, gateWayEdgesCount);
+        var s = Stopwatch.StartNew();
+        var result = Solve(graph, gateWays);
         foreach (var edge in result)
         {
             Console.WriteLine(edge);
         }
+
+        s.Stop();
+        Console.WriteLine(s.ElapsedMilliseconds);
     }
 
-    static Dictionary<int, List<(char Prev, char GateWay, char VirusNextStep)>> BFS(char startPos,
+    static Dictionary<int, List<(char Prev, char GateWay, char VirusNextStep)>> BFS(State state,
         Dictionary<char, HashSet<char>> graph)
     {
         var distances = new Dictionary<int, List<(char, char, char)>>();
         var q = new Queue<(char Previous, char GateWay, char VirusNextStep, int Distance)>();
         var visited = new HashSet<char>();
-        q.Enqueue((startPos, startPos, startPos, 0));
+        q.Enqueue((state.VirusPosition, state.VirusPosition, state.VirusPosition, 0));
         while (q.Count > 0)
         {
             var (previous, current, virusNextStep, distance) = q.Dequeue();
             if (current <= 'Z')
             {
-                distances.TryAdd(distance, []);
-                distances[distance].Add((previous, current, virusNextStep));
+                if (state.GateWays.Contains((current, previous)))
+                {
+                    distances.TryAdd(distance, []);
+                    distances[distance].Add((previous, current, virusNextStep));
+                }
             }
 
             else
@@ -119,7 +140,8 @@ class Program
 
             foreach (var neighbour in graph[current].Where(x => !visited.Contains(x)))
             {
-                q.Enqueue((current, neighbour, virusNextStep == startPos ? neighbour : virusNextStep, distance + 1));
+                q.Enqueue((current, neighbour, virusNextStep == state.VirusPosition ? neighbour : virusNextStep,
+                    distance + 1));
             }
         }
 
