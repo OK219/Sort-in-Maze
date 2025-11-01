@@ -52,30 +52,32 @@ class Program
             var curState = q.Dequeue();
             if (!visited.Add(curState) || curState.VirusPosition <= 'Z') continue;
             var distances = BFS(curState, graph);
-            foreach (var pair in distances.OrderBy(x => x.Key))
+            foreach (var toRemove in distances
+                         .Select(x => x.Value)
+                         .SelectMany(x => x)
+                         .OrderBy(x => x.GateWay)
+                         .ThenBy(x => x.Prev))
             {
-                foreach (var toRemove in pair.Value.OrderBy(x => x.GateWay).ThenBy(x => x.Prev))
+                if (curState.GateWays.Count == 1)
                 {
-                    if (curState.GateWays.Count == 1)
-                    {
-                        curState.Result.Add($"{toRemove.GateWay}-{toRemove.Prev}");
-                        return curState.Result;
-                    }
-
-                    var virusNextStep = distances
-                        .OrderBy(x => x.Key)
-                        .First(x => (x.Value.Count > 1 && x.Value.Contains(toRemove)) || !x.Value.Contains(toRemove))
-                        .Value
-                        .OrderBy(x => x.GateWay)
-                        .ThenBy(x => x.VirusNextStep)
-                        .First(x => x != toRemove)
-                        .VirusNextStep;
-
-                    var nextState = new State(virusNextStep, curState.GateWays, curState.Result);
-                    nextState.GateWays.Remove((toRemove.GateWay, toRemove.Prev));
-                    nextState.Result.Add($"{toRemove.GateWay}-{toRemove.Prev}");
-                    if (!visited.Contains(nextState)) q.Enqueue(nextState);
+                    curState.Result.Add($"{toRemove.GateWay}-{toRemove.Prev}");
+                    return curState.Result;
                 }
+
+                var virusNextStep = distances
+                    .OrderBy(x => x.Key)
+                    .First(x => (x.Value.Count > 1 && x.Value.Contains(toRemove)) || !x.Value.Contains(toRemove))
+                    .Value
+                    .OrderBy(x => x.GateWay)
+                    .ThenBy(x => x.VirusNextStep)
+                    .First(x => x != toRemove)
+                    .VirusNextStep;
+
+                var nextState = new State(virusNextStep, curState.GateWays, curState.Result);
+                nextState.GateWays.Remove((toRemove.GateWay, toRemove.Prev));
+                nextState.Result.Add($"{toRemove.GateWay}-{toRemove.Prev}");
+                if (!visited.Contains(nextState)) q.Enqueue(nextState);
+                
             }
         }
 
