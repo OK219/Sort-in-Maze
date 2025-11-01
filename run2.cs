@@ -103,15 +103,15 @@ class Program
             if (first <= 'Z') gateWays.Add((first, second));
         }
 
-        var s = Stopwatch.StartNew();
+        // var s = Stopwatch.StartNew();
         var result = Solve(graph, gateWays);
         foreach (var edge in result)
         {
             Console.WriteLine(edge);
         }
 
-        s.Stop();
-        Console.WriteLine(s.ElapsedMilliseconds);
+        // s.Stop();
+        // Console.WriteLine(s.ElapsedMilliseconds);
     }
 
     static Dictionary<int, List<(char Prev, char GateWay, char VirusNextStep)>> BFS(State state,
