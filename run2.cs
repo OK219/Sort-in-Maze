@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+
 public class State
 {
     public readonly char VirusPosition;
@@ -31,7 +32,10 @@ public class State
     public override int GetHashCode()
     {
         var hash = (int)VirusPosition;
-        return GateWays.Aggregate(hash, (current, pair) => HashCode.Combine(pair, current));
+        return GateWays
+            .OrderBy(x => x.GateWay)
+            .ThenBy(x => x.PrevNode)
+            .Aggregate(hash, (current, pair) => HashCode.Combine(pair, current));
     }
 }
 
@@ -63,7 +67,7 @@ class Program
                         .First(x => (x.Value.Count > 1 && x.Value.Contains(toRemove)) || !x.Value.Contains(toRemove))
                         .Value
                         .OrderBy(x => x.GateWay)
-                        .ThenBy(x => x.Prev)
+                        .ThenBy(x => x.VirusNextStep)
                         .First(x => x != toRemove)
                         .VirusNextStep;
 
@@ -92,6 +96,7 @@ class Program
             if (parts.Length != 2) continue;
             var first = parts[0][0];
             var second = parts[1][0];
+
             graph.TryAdd(first, []);
             graph[first].Add(second);
 
@@ -116,7 +121,8 @@ class Program
     static Dictionary<int, List<(char Prev, char GateWay, char VirusNextStep)>> BFS(State state,
         Dictionary<char, HashSet<char>> graph)
     {
-        var distances = new Dictionary<int, List<(char, char, char)>>();
+        var movesByDistance = new Dictionary<int, List<(char, char, char)>>();
+        var distances = new Dictionary<char, int>();
         var q = new Queue<(char Previous, char GateWay, char VirusNextStep, int Distance)>();
         var visited = new HashSet<char>();
         q.Enqueue((state.VirusPosition, state.VirusPosition, state.VirusPosition, 0));
@@ -127,14 +133,17 @@ class Program
             {
                 if (state.GateWays.Contains((current, previous)))
                 {
-                    distances.TryAdd(distance, []);
-                    distances[distance].Add((previous, current, virusNextStep));
+                    movesByDistance.TryAdd(distance, []);
+                    movesByDistance[distance].Add((previous, current, virusNextStep));
                 }
+
+                continue;
             }
 
             else
             {
-                if (!visited.Add(current)) continue;
+                if (!visited.Add(current) && distances[current] != distance) continue;
+                distances[current] = distance;
             }
 
             foreach (var neighbour in graph[current].Where(x => !visited.Contains(x)))
@@ -144,6 +153,6 @@ class Program
             }
         }
 
-        return distances;
+        return movesByDistance;
     }
 }
